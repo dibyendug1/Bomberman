@@ -10,12 +10,17 @@ public class Player {
   int[][] playerTwo = new int[NUM_PLAYER][2];
   ArrayList<int[]> bomb1 = new ArrayList<>();
   ArrayList<int[]> bomb2 = new ArrayList<>();
-  ArrayList<Move> moves = new ArrayList<>();
+  final int[][] moveDirections = { { 1, 0 }, { -1, 0 }, { 0, -1 }, { 0, 1 } };
+  final int[][] bombZone =
+      { { 1, 0 }, { 2, 0 }, { -1, 0 }, { -2, 0 }, { 0, -1 }, { 0, -2 },
+          { 0, 1 }, { 0, 2 } };
   static int num_playerOne = 0;
   static int num_playerTwo = 0;
 
   public void play() {
     getBoardInfo(board, identity, playerOne, playerTwo);
+    ArrayList<Move> moves = new ArrayList<>();
+    genAllMoves(moves);
   }
 
   public void getBoardInfo(int[][] board, String identity, int[][] playerOne,
@@ -60,11 +65,61 @@ public class Player {
     }
   }
 
-  private void genAllMoves() {
+  private void genAllMoves(ArrayList<Move> moves) {
     for (int[] player : playerOne) {
-
+      for (int i = 0; i < moveDirections.length; i++) {
+        int[] direction = moveDirections[i];
+        if (isValidMove(player, direction)) {
+          Move mv = new Move();
+          mv.setCurr_row(player[0]);
+          mv.setCurr_col(player[1]);
+          mv.setNext_row(direction[0] + player[0]);
+          mv.setNext_col(direction[1] + player[1]);
+          mv.setDirection(i);
+          moves.add(mv);
+        }
+      }
     }
+  }
 
+  private boolean isValidMove(int[] player, int[] direction) {
+    int row = player[0] + direction[0];
+    int col = player[1] + direction[1];
+    if (row < 0 || row >= MAX_ROW) {
+      return false;
+    }
+    if (col < 0 || col >= MAX_COL) {
+      return false;
+    }
+    /*
+    if (board[row][col] == GRID_FENCE || board[row][col] == GRID_BOMB1
+        || board[row][col] == GRID_BOMB2 || board[row][col] == GRID_LEFT
+        || board[row][col] == GRID_RIGHT) {
+    }*/
+
+    if (board[row][col] == GRID_EMPTY) {
+      if (isBombZone()) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private boolean isBombZone() {
+    for (int i = 0; i < bombZone.length; i++) {
+      int[] cell = bombZone[i];
+      if (board[cell[0]][cell[1]] == GRID_FENCE) {
+        if (cell[0] == -1 || cell[0] == 1 || cell[1] == -1 || cell[1] == 1) {
+          i += 2;
+        }
+      }
+      if (board[cell[0]][cell[1]] == GRID_BOMB1
+          || board[cell[0]][cell[1]] == GRID_BOMB2) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void makeMove() {
@@ -112,6 +167,16 @@ class Move {
   int next_row;
   int next_col;
   int bomb;
+
+  public int getDirection() {
+    return direction;
+  }
+
+  public void setDirection(int direction) {
+    this.direction = direction;
+  }
+
+  int direction;
 
   public int getPlayer() {
     return player;
