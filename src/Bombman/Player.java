@@ -6,6 +6,7 @@ public class Player {
 
   int[][] board = new int[MAX_ROW][MAX_COL];
   String identity = api_whoami() == GRID_LEFT ? "left" : "right";
+  final int opponent = api_whoami() == GRID_LEFT ? GRID_RIGHT : GRID_LEFT;
   int[][] playerOne = new int[NUM_PLAYER][2];
   int[][] playerTwo = new int[NUM_PLAYER][2];
   ArrayList<int[]> bomb1 = new ArrayList<>();
@@ -76,10 +77,47 @@ public class Player {
           mv.setNext_row(direction[0] + player[0]);
           mv.setNext_col(direction[1] + player[1]);
           mv.setDirection(i);
+          mv.setPlayer(identity.equals("right") ? PLAYER_R : PLAYER_L);
+          int bomb = 0;
+          if (isOpponentInRadius2(player)) {
+            bomb = GRID_BOMB1;
+          }
+          if (isOpponentInRadius2_4(player)) {
+            bomb = GRID_BOMB2;
+          }
+          mv.setBomb(bomb);
           moves.add(mv);
         }
       }
     }
+  }
+
+  private boolean isOpponentInRadius2_4(int[] player) {
+    for (int i = -4; i <= 4; i++) {
+      for (int j = -4; j <= 4; j++) {
+        if (i >= -2 && i <= 2 && j >= -2 && j <= 2) {
+          continue;
+        }
+        if (board[player[0] + i][player[1] + j] == opponent) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private boolean isOpponentInRadius2(int[] player) {
+    for (int i = -2; i <= 2; i++) {
+      for (int j = -2; j <= 2; j++) {
+        if (i == 0 && j == 0) {
+          continue;
+        }
+        if (board[player[0] + i][player[1] + j] == opponent) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private boolean isValidMove(int[] player, int[] direction) {
