@@ -6,11 +6,12 @@ public class Player {
 
   int[][] board = new int[MAX_ROW][MAX_COL];
   // Our team identity
-  int identity = api_whoami() == GRID_LEFT ? GRID_LEFT : GRID_RIGHT;
+  final int identity = api_whoami() == GRID_LEFT ? GRID_LEFT : GRID_RIGHT;
   final int opponent = api_whoami() == GRID_LEFT ? GRID_RIGHT : GRID_LEFT;
   // playerOne is our team
-  int[][] playerOne = new int[NUM_PLAYER][2];
-  int[][] playerTwo = new int[NUM_PLAYER][2];
+  ArrayList<Miniman> playerOne = new ArrayList<>();
+  ArrayList<Miniman> playerTwo = new ArrayList<>();
+  // list to store bomb locations
   static ArrayList<Bomb> bombList = new ArrayList<>();
   // four possible move direction for miniman
   final int[][] moveDirections = { { 1, 0 }, { -1, 0 }, { 0, -1 }, { 0, 1 } };
@@ -36,7 +37,7 @@ public class Player {
     //Create tmp bomb list to maintain internal states
     ArrayList<Bomb> tmpBombList = new ArrayList<Bomb>();
     //get board information
-    getBoardInfo(board, identity, playerOne, playerTwo);
+    getBoardInfo(board, playerOne, playerTwo);
     //set num of playes in temporary variable for internal states
     mod_numPlayerOne = num_playerOne;
     mod_numPlayerTwo = num_playerTwo;
@@ -61,59 +62,45 @@ public class Player {
 
   private void copyList(ArrayList<Bomb> bombList, ArrayList<Bomb> tmpBombList) {
     for (Bomb b : bombList) {
-      Bomb t_b = new Bomb();
-      t_b.setRow(b.getRow());
-      t_b.setCol(b.getCol());
-      t_b.setType(b.getType());
-      t_b.setTime(b.getTime());
-      tmpBombList.add(t_b);
+      tmpBombList
+          .add(new Bomb(b.getType(), b.getRow(), b.getCol(), b.getTime()));
     }
   }
 
-  public void getBoardInfo(int[][] board, int identity, int[][] playerOne,
-      int[][] playerTwo) {
-    int p1Count = 0;
-    int p2Count = 0;
+  public void getBoardInfo(int[][] board, ArrayList<Miniman> playerOne,
+      ArrayList<Miniman> playerTwo) {
     for (int i = 0; i < MAX_ROW; i++) {
       for (int j = 0; j < MAX_COL; j++) {
         int cell = api_getGridInfo(i, j);
         board[i][j] = cell;
         if (cell == identity) {
-          playerOne[p1Count][0] = i;
-          playerOne[p1Count][1] = j;
+          playerOne.add(new Miniman(identity, i, j));
           num_playerOne++;
-          p1Count++;
         } else if (cell == opponent) {
-          playerTwo[p2Count][0] = i;
-          playerTwo[p2Count][1] = j;
+          playerTwo.add(new Miniman(opponent, i, j));
           num_playerTwo++;
-          p2Count++;
         }
         if (cell == GRID_BOMB1 || cell == GRID_BOMB2) {
           if (!isBombPresent(i, j)) {
-            Bomb b = new Bomb();
-            b.setType(cell);
-            b.setRow(i);
-            b.setCol(j);
-            bombList.add(b);
+            bombList.add(new Bomb(cell, i, j));
           }
         }
       }
     }
   }
 
-  private void genAllMoves(ArrayList<Move> moves, int[][] players, int who,
-      int numPlayers) {
+  private void genAllMoves(ArrayList<Move> moves, ArrayList<Miniman> players,
+      int who, int numPlayers) {
     for (int playerPos = 0; playerPos < numPlayers; playerPos++) {
-      int[] player = players[playerPos];
+      Miniman player = players.get(playerPos);
       for (int i = 0; i < moveDirections.length; i++) {
         int[] direction = moveDirections[i];
         if (isValidMove(player, direction)) {
           Move mv = new Move();
-          mv.setCurr_row(player[0]);
-          mv.setCurr_col(player[1]);
-          mv.setNext_row(direction[0] + player[0]);
-          mv.setNext_col(direction[1] + player[1]);
+          mv.setCurr_row(player.getRow());
+          mv.setCurr_col(player.getCol());
+          mv.setNext_row(direction[0] + player.getRow());
+          mv.setNext_col(direction[1] + player.getCol());
           mv.setDirection(i);
           mv.setPlayer(who);
           mv.setPlayerPos(playerPos);
@@ -135,8 +122,9 @@ public class Player {
 
   private void makeMove(Move move, ArrayList<Bomb> tmpBombList) {
     if (move.getPlayer() == identity) {
-      playerOne[move.getPlayerPos()][0] = move.getNext_row();
-      playerOne[move.getPlayerPos()][1] = move.getNext_col();
+      int pos = move.getPlayerPos();
+      playerOne.get(pos).setRow(move.getNext_row());
+      playerOne.get(pos).setCol(move.getNext_col());
       board[move.getNext_row()][move.getNext_col()] = identity;
       board[move.getCurr_row()][move.getCurr_col()] = move.getBomb();
 
@@ -234,54 +222,59 @@ public class Player {
     }
   }
 
-  private boolean hasEscapeRuote(int[] player, int direction) {
+  private boolean hasEscapeRuote(Miniman player, int direction) {
+    int row = player.getRow();
+    int col = player.getCol();
     if (direction == DIR_UP) {
-      if (board[player[0] + 1][player[1] + 1] == GRID_EMPTY
-          || board[player[0] - 1][player[1] + 1] == GRID_EMPTY) {
+      if (board[row + 1][col + 1] == GRID_EMPTY
+          || board[row - 1][col + 1] == GRID_EMPTY) {
         return true;
       }
     } else if (direction == DIR_DOWN) {
-      if (board[player[0] + 1][player[1] - 1] == GRID_EMPTY
-          || board[player[0] - 1][player[1] - 1] == GRID_EMPTY) {
+      if (board[row + 1][col - 1] == GRID_EMPTY
+          || board[row - 1][col - 1] == GRID_EMPTY) {
         return true;
       }
     } else if (direction == DIR_LEFT) {
-      if (board[player[0] - 1][player[1] + 1] == GRID_EMPTY
-          || board[player[0] - 1][player[1] - 1] == GRID_EMPTY) {
+      if (board[row - 1][col + 1] == GRID_EMPTY
+          || board[row - 1][col - 1] == GRID_EMPTY) {
         return true;
       }
     } else if (direction == DIR_RIGHT) {
-      if (board[player[0] + 1][player[1] + 1] == GRID_EMPTY
-          || board[player[0] + 1][player[1] - 1] == GRID_EMPTY) {
+      if (board[row + 1][col + 1] == GRID_EMPTY
+          || board[row + 1][col - 1] == GRID_EMPTY) {
         return true;
       }
     }
     return false;
   }
 
-  private boolean isOurPlayerInBombRadius(int[] player) {
+  private boolean isOurPlayerInBombRadius(Miniman player) {
     for (int[] cell : bombArea) {
-      if (board[player[0] + cell[0]][player[1] + cell[1]] == identity) {
+      if (board[player.getRow() + cell[0]][player.getCol() + cell[1]]
+          == identity) {
         return true;
       }
     }
     return false;
   }
 
-  private boolean isOpponentInRadius5(int[] player) {
+  private boolean isOpponentInRadius5(Miniman player) {
+    int row = player.getRow();
+    int col = player.getCol();
     for (int i = -5; i <= 5; i++) {
       int absI = i < 0 ? i * -1 : i;
       if (i == -5 || i == 5) {
-        if (board[player[0] + i][player[1]] == opponent) {
+        if (board[row + i][col] == opponent) {
           return true;
         }
       } else {
         int j = -5 + absI;
-        if (board[player[0] + i][player[1] + j] == opponent) {
+        if (board[row + i][col + j] == opponent) {
           return true;
         }
         j = 5 - absI;
-        if (board[player[0] + i][player[1] + j] == opponent) {
+        if (board[row + i][col + j] == opponent) {
           return true;
         }
       }
@@ -289,11 +282,11 @@ public class Player {
     return false;
   }
 
-  private boolean isOpponentInRadius4(int[] player) {
+  private boolean isOpponentInRadius4(Miniman player) {
     for (int i = -4; i <= 4; i++) {
       int absI = i < 0 ? i * -1 : i;
       for (int j = -4 + absI; j <= 4 - absI; j++) {
-        if (board[player[0] + i][player[1] + j] == opponent) {
+        if (board[player.getRow() + i][player.getCol() + j] == opponent) {
           return true;
         }
       }
@@ -301,9 +294,9 @@ public class Player {
     return false;
   }
 
-  private boolean isValidMove(int[] player, int[] direction) {
-    int row = player[0] + direction[0];
-    int col = player[1] + direction[1];
+  private boolean isValidMove(Miniman player, int[] direction) {
+    int row = player.getRow() + direction[0];
+    int col = player.getCol() + direction[1];
     if (row < 0 || row >= MAX_ROW) {
       return false;
     }
@@ -322,19 +315,21 @@ public class Player {
   private boolean isBombZone() {
     for (int i = 0; i < bombZone.length; i++) {
       int[] cell = bombZone[i];
+      int rindex = cell[0];
+      int cindex = cell[1];
       // no need to check the cell which is other side of the fence
-      if (board[cell[0]][cell[1]] == GRID_FENCE) {
-        if (cell[0] == -1 || cell[0] == 1 || cell[1] == -1 || cell[1] == 1) {
+      if (board[rindex][cindex] == GRID_FENCE) {
+        if (rindex == -1 || rindex == 1 || cindex == -1 || cindex == 1) {
           i += 3;
         }
       }
-      if (board[cell[0]][cell[1]] == GRID_FENCE) {
-        if (cell[0] == -2 || cell[0] == 2 || cell[1] == -2 || cell[1] == 2) {
+      if (board[rindex][cindex] == GRID_FENCE) {
+        if (rindex == -2 || rindex == 2 || cindex == -2 || cindex == 2) {
           i += 2;
         }
       }
-      if (board[cell[0]][cell[1]] == GRID_BOMB1
-          || board[cell[0]][cell[1]] == GRID_BOMB2) {
+      if (board[rindex][cindex] == GRID_BOMB1
+          || board[rindex][cindex] == GRID_BOMB2) {
         return true;
       }
     }

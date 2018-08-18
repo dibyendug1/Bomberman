@@ -8,6 +8,19 @@ public class Bomb {
   int col;
   int time;
 
+  Bomb(int type, int row, int col) {
+    setType(type);
+    this.row = row;
+    this.col = col;
+  }
+
+  Bomb(int type, int row, int col, int time) {
+    this.type = type;
+    this.row = row;
+    this.col = col;
+    this.time = time;
+  }
+
   public int getType() {
     return type;
   }

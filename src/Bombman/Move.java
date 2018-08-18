@@ -8,7 +8,8 @@ public class Move {
   int next_row;
   int next_col;
   int bomb = 0;
-
+  int direction;
+  
   public int getPlayerPos() {
     return playerPos;
   }
@@ -24,8 +25,6 @@ public class Move {
   public void setDirection(int direction) {
     this.direction = direction;
   }
-
-  int direction;
 
   public int getPlayer() {
     return player;
