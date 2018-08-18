@@ -41,7 +41,7 @@ public class Bomb {
     return time;
   }
 
-  private void setTime(int time) {
+  public void setTime(int time) {
     this.time = time;
   }
 

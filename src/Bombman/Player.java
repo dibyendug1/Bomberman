@@ -31,25 +31,43 @@ public class Player {
   public void play() {
     num_playerOne = 0;
     num_playerTwo = 0;
-    decreseBombTime();
+    //decrease bomb time by 1
+    decreseBombTime(bombList);
+    //Create tmp bomb list to maintain internal states
+    ArrayList<Bomb> tmpBombList = new ArrayList<Bomb>();
+    //get board information
     getBoardInfo(board, identity, playerOne, playerTwo);
+    //set num of playes in temporary variable for internal states
     mod_numPlayerOne = num_playerOne;
     mod_numPlayerTwo = num_playerTwo;
+    // lists to store moves of the playes
     ArrayList<Move> movesPlayerOne = new ArrayList<>();
     ArrayList<Move> movesPlayerTwo = new ArrayList<>();
+    // generate moves for players
     genAllMoves(movesPlayerOne, playerOne, identity, num_playerOne);
     genAllMoves(movesPlayerTwo, playerTwo, opponent, num_playerTwo);
+    // copy bomb list to temporary bomblist
+    copyList(bombList, tmpBombList);
 
-    // First level move
-    ArrayList<Bomb> tmpBombList = bombList;
-    for (Bomb b : tmpBombList) {
-      b.decrTime();
-    }
+    // First level move in internal state
+    // in this move bomb time in tmporary list will also decrease
+    decreseBombTime(tmpBombList);
     for (Move move : movesPlayerOne) {
       makeMove(move, tmpBombList);
     }
 
     clearMemory();
+  }
+
+  private void copyList(ArrayList<Bomb> bombList, ArrayList<Bomb> tmpBombList) {
+    for (Bomb b : bombList) {
+      Bomb t_b = new Bomb();
+      t_b.setRow(b.getRow());
+      t_b.setCol(b.getCol());
+      t_b.setType(b.getType());
+      t_b.setTime(b.getTime());
+      tmpBombList.add(t_b);
+    }
   }
 
   public void getBoardInfo(int[][] board, int identity, int[][] playerOne,
@@ -121,15 +139,19 @@ public class Player {
       playerOne[move.getPlayerPos()][1] = move.getNext_col();
       board[move.getNext_row()][move.getNext_col()] = identity;
       board[move.getCurr_row()][move.getCurr_col()] = move.getBomb();
-      ArrayList<Bomb> modList = tmpBombList;
 
-      for (Bomb b : tmpBombList) {
-        if (b.getTime() == 0 && modList.contains(b)) {
-          modList.remove(b);
-          blowBomb(b, modList);
+      int listSize = tmpBombList.size();
+      for (int i = 0; i < listSize; i++) {
+        Bomb b1 = tmpBombList.get(i);
+        if (b1.getTime() == 0) {
+          tmpBombList.remove(b1);
+          blowBomb(b1, tmpBombList);
+          i--;
+          listSize = tmpBombList.size();
         }
       }
-      tmpBombList = modList;
+
+      removeExplodedBomb(tmpBombList);
       genCost(mod_numPlayerOne, mod_numPlayerTwo, api_getSelfScore(),
           api_getOppoScore(), move.getBomb());
     }
@@ -141,15 +163,19 @@ public class Player {
     return 0;
   }
 
-  private void blowBomb(Bomb b, ArrayList<Bomb> modList) {
-    if (modList.isEmpty()) {
+  private void blowBomb(Bomb b, ArrayList<Bomb> tmpList) {
+    if (tmpList.isEmpty()) {
       return;
     }
     killPlayers(b);
-    for (Bomb t_b : modList) {
+    int size = tmpList.size();
+    for (int i = 0; i < size; i++) {
+      Bomb t_b = tmpList.get(i);
       if (isInRadius(b, t_b)) {
-        modList.remove(t_b);
-        blowBomb(t_b, modList);
+        tmpList.remove(t_b);
+        blowBomb(t_b, tmpList);
+        i--;
+        size = tmpList.size();
       }
     }
   }
@@ -185,11 +211,25 @@ public class Player {
     return false;
   }
 
-  private void decreseBombTime() {
-    for (Bomb b : bombList) {
+  private void decreseBombTime(ArrayList<Bomb> tmpList) {
+    int size = tmpList.size();
+    for (int i = 0; i < size; i++) {
+      Bomb b = tmpList.get(i);
       b.decrTime();
-      if (b.getTime() == 0) {
-        bombList.remove(b);
+      if (b.getTime() < 0) {
+        tmpList.remove(b);
+        size--;
+      }
+    }
+  }
+
+  private void removeExplodedBomb(ArrayList<Bomb> tmpList) {
+    int size = tmpList.size();
+    for (int i = 0; i < size; i++) {
+      Bomb b = tmpList.get(i);
+      if (b.getTime() < 0) {
+        tmpList.remove(b);
+        size--;
       }
     }
   }
@@ -271,7 +311,7 @@ public class Player {
       return false;
     }
     if (board[row][col] == GRID_EMPTY) {
-/*      if (isBombZone()) {
+      /*if (isBombZone()) {
         return false;
       }*/
       return true;
