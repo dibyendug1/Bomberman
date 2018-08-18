@@ -5,26 +5,45 @@ import java.util.ArrayList;
 public class Player {
 
   int[][] board = new int[MAX_ROW][MAX_COL];
-  String identity = api_whoami() == GRID_LEFT ? "left" : "right";
+  // Our team identity
+  int identity = api_whoami() == GRID_LEFT ? GRID_LEFT : GRID_RIGHT;
   final int opponent = api_whoami() == GRID_LEFT ? GRID_RIGHT : GRID_LEFT;
+  // playerOne is our team
   int[][] playerOne = new int[NUM_PLAYER][2];
   int[][] playerTwo = new int[NUM_PLAYER][2];
-  ArrayList<int[]> bomb1 = new ArrayList<>();
-  ArrayList<int[]> bomb2 = new ArrayList<>();
+  static ArrayList<Bomb> bombList = new ArrayList<>();
+  // four possible move direction for miniman
   final int[][] moveDirections = { { 1, 0 }, { -1, 0 }, { 0, -1 }, { 0, 1 } };
+  // if bomb present at radius 3
   final int[][] bombZone =
+      { { 1, 0 }, { 2, 0 }, { 3, 0 }, { -1, 0 }, { -2, 0 }, { -3, 0 },
+          { 0, -1 }, { 0, -2 }, { 0, -3 }, { 0, 1 }, { 0, 2 }, { 0, 3 } };
+  // if bomb present at radius 2
+  final int[][] bombArea =
       { { 1, 0 }, { 2, 0 }, { -1, 0 }, { -2, 0 }, { 0, -1 }, { 0, -2 },
           { 0, 1 }, { 0, 2 } };
-  static int num_playerOne = 0;
-  static int num_playerTwo = 0;
+
+  int num_playerOne = 0;
+  int num_playerTwo = 0;
 
   public void play() {
+    num_playerOne = 0;
+    num_playerTwo = 0;
+    decreseBombTime();
     getBoardInfo(board, identity, playerOne, playerTwo);
-    ArrayList<Move> moves = new ArrayList<>();
-    genAllMoves(moves);
+    ArrayList<Move> movesPlayerOne = new ArrayList<>();
+    ArrayList<Move> movesPlayerTwo = new ArrayList<>();
+    genAllMoves(movesPlayerOne, playerOne, identity);
+    genAllMoves(movesPlayerTwo, playerTwo, opponent);
+
+    for (Move move : movesPlayerOne) {
+      makeMove(move);
+    }
+
+    clearMemory();
   }
 
-  public void getBoardInfo(int[][] board, String identity, int[][] playerOne,
+  public void getBoardInfo(int[][] board, int identity, int[][] playerOne,
       int[][] playerTwo) {
     int p1Count = 0;
     int p2Count = 0;
@@ -32,42 +51,33 @@ public class Player {
       for (int j = 0; j < MAX_COL; j++) {
         int cell = api_getGridInfo(i, j);
         board[i][j] = cell;
-        if (identity.equals("left")) {
-          if (cell == GRID_LEFT) {
-            playerOne[p1Count][0] = i;
-            playerOne[p1Count][1] = j;
-            num_playerOne++;
-            p1Count++;
-          } else if (cell == GRID_RIGHT) {
-            playerTwo[p2Count][0] = i;
-            playerTwo[p2Count][1] = j;
-            num_playerTwo++;
-            p2Count++;
-          }
-        } else if (identity.equals("right")) {
-          if (cell == GRID_RIGHT) {
-            playerOne[p1Count][0] = i;
-            playerOne[p1Count][1] = j;
-            num_playerOne++;
-            p1Count++;
-          } else if (cell == GRID_LEFT) {
-            playerTwo[p2Count][0] = i;
-            playerTwo[p2Count][1] = j;
-            num_playerTwo++;
-            p2Count++;
-          }
+        if (cell == identity) {
+          playerOne[p1Count][0] = i;
+          playerOne[p1Count][1] = j;
+          num_playerOne++;
+          p1Count++;
+        } else if (cell == opponent) {
+          playerTwo[p2Count][0] = i;
+          playerTwo[p2Count][1] = j;
+          num_playerTwo++;
+          p2Count++;
         }
-        if (cell == GRID_BOMB1) {
-          bomb1.add(new int[] { i, j });
-        } else if (cell == GRID_BOMB2) {
-          bomb2.add(new int[] { i, j });
+        if (cell == GRID_BOMB1 || cell == GRID_BOMB2) {
+          if (!isBombPresent(i, j)) {
+            Bomb b = new Bomb();
+            b.setType(cell);
+            b.setRow(i);
+            b.setCol(j);
+            bombList.add(b);
+          }
         }
       }
     }
   }
 
-  private void genAllMoves(ArrayList<Move> moves) {
-    for (int[] player : playerOne) {
+  private void genAllMoves(ArrayList<Move> moves, int[][] players, int who) {
+    for (int playerPos = 0; playerPos < players.length; playerPos++) {
+      int[] player = players[playerPos];
       for (int i = 0; i < moveDirections.length; i++) {
         int[] direction = moveDirections[i];
         if (isValidMove(player, direction)) {
@@ -77,27 +87,102 @@ public class Player {
           mv.setNext_row(direction[0] + player[0]);
           mv.setNext_col(direction[1] + player[1]);
           mv.setDirection(i);
-          mv.setPlayer(identity.equals("right") ? PLAYER_R : PLAYER_L);
+          mv.setPlayer(who);
+          mv.setPlayerPos(playerPos);
           int bomb = 0;
-          if (isOpponentInRadius2(player)) {
-            bomb = GRID_BOMB1;
+          if (!isOurPlayerInBombRadius(player) && hasEscapeRuote(player, i)) {
+            if (isOpponentInRadius4(player)) {
+              bomb = GRID_BOMB1;
+            }
+            if (isOpponentInRadius5(player)) {
+              bomb = GRID_BOMB2;
+            }
+            mv.setBomb(bomb);
+            moves.add(mv);
           }
-          if (isOpponentInRadius2_4(player)) {
-            bomb = GRID_BOMB2;
-          }
-          mv.setBomb(bomb);
-          moves.add(mv);
         }
       }
     }
   }
 
-  private boolean isOpponentInRadius2_4(int[] player) {
-    for (int i = -4; i <= 4; i++) {
-      for (int j = -4; j <= 4; j++) {
-        if (i >= -2 && i <= 2 && j >= -2 && j <= 2) {
-          continue;
+  private void makeMove(Move move) {
+    if (move.getPlayer() == identity) {
+      playerOne[move.getPlayerPos()][0] = move.getNext_row();
+      playerOne[move.getPlayerPos()][1] = move.getNext_col();
+      board[move.getNext_row()][move.getNext_col()] = identity;
+      board[move.getCurr_row()][move.getCurr_col()] = move.getBomb();
+    }
+  }
+
+  private int genCost() {
+    return 0;
+  }
+
+  private boolean isBombPresent(int i, int j) {
+    for (Bomb b : bombList) {
+      if (b.getRow() == i && b.getCol() == j) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private void decreseBombTime() {
+    for (Bomb b : bombList) {
+      b.decrTime();
+      if (b.getTime() == 0) {
+        bombList.remove(b);
+      }
+    }
+  }
+
+  private boolean hasEscapeRuote(int[] player, int direction) {
+    if (direction == DIR_UP) {
+      if (board[player[0] + 1][player[1] + 1] == GRID_EMPTY
+          || board[player[0] - 1][player[1] + 1] == GRID_EMPTY) {
+        return true;
+      }
+    } else if (direction == DIR_DOWN) {
+      if (board[player[0] + 1][player[1] - 1] == GRID_EMPTY
+          || board[player[0] - 1][player[1] - 1] == GRID_EMPTY) {
+        return true;
+      }
+    } else if (direction == DIR_LEFT) {
+      if (board[player[0] - 1][player[1] + 1] == GRID_EMPTY
+          || board[player[0] - 1][player[1] - 1] == GRID_EMPTY) {
+        return true;
+      }
+    } else if (direction == DIR_RIGHT) {
+      if (board[player[0] + 1][player[1] + 1] == GRID_EMPTY
+          || board[player[0] + 1][player[1] - 1] == GRID_EMPTY) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean isOurPlayerInBombRadius(int[] player) {
+    for (int[] cell : bombArea) {
+      if (board[player[0] + cell[0]][player[1] + cell[1]] == identity) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean isOpponentInRadius5(int[] player) {
+    for (int i = -5; i <= 5; i++) {
+      int absI = i < 0 ? i * -1 : i;
+      if (i == -5 || i == 5) {
+        if (board[player[0] + i][player[1]] == opponent) {
+          return true;
         }
+      } else {
+        int j = -5 + absI;
+        if (board[player[0] + i][player[1] + j] == opponent) {
+          return true;
+        }
+        j = 5 - absI;
         if (board[player[0] + i][player[1] + j] == opponent) {
           return true;
         }
@@ -106,12 +191,10 @@ public class Player {
     return false;
   }
 
-  private boolean isOpponentInRadius2(int[] player) {
-    for (int i = -2; i <= 2; i++) {
-      for (int j = -2; j <= 2; j++) {
-        if (i == 0 && j == 0) {
-          continue;
-        }
+  private boolean isOpponentInRadius4(int[] player) {
+    for (int i = -4; i <= 4; i++) {
+      int absI = i < 0 ? i * -1 : i;
+      for (int j = -4 + absI; j <= 4 - absI; j++) {
         if (board[player[0] + i][player[1] + j] == opponent) {
           return true;
         }
@@ -129,12 +212,6 @@ public class Player {
     if (col < 0 || col >= MAX_COL) {
       return false;
     }
-    /*
-    if (board[row][col] == GRID_FENCE || board[row][col] == GRID_BOMB1
-        || board[row][col] == GRID_BOMB2 || board[row][col] == GRID_LEFT
-        || board[row][col] == GRID_RIGHT) {
-    }*/
-
     if (board[row][col] == GRID_EMPTY) {
       if (isBombZone()) {
         return false;
@@ -147,8 +224,14 @@ public class Player {
   private boolean isBombZone() {
     for (int i = 0; i < bombZone.length; i++) {
       int[] cell = bombZone[i];
+      // no need to check the cell which is other side of the fence
       if (board[cell[0]][cell[1]] == GRID_FENCE) {
         if (cell[0] == -1 || cell[0] == 1 || cell[1] == -1 || cell[1] == 1) {
+          i += 3;
+        }
+      }
+      if (board[cell[0]][cell[1]] == GRID_FENCE) {
+        if (cell[0] == -2 || cell[0] == 2 || cell[1] == -2 || cell[1] == 2) {
           i += 2;
         }
       }
@@ -160,11 +243,12 @@ public class Player {
     return false;
   }
 
-  private void makeMove() {
-  }
-
-  private int genCost() {
-    return 0;
+  private void clearMemory() {
+    board = null;
+    playerOne = null;
+    playerTwo = null;
+    bombList.clear();
+    System.gc();
   }
 
   public static native int api_whoami();
@@ -196,71 +280,4 @@ public class Player {
   public static final int DIR_DOWN = 1;
   public static final int DIR_LEFT = 2;
   public static final int DIR_RIGHT = 3;
-}
-
-class Move {
-  int player;
-  int curr_row;
-  int curr_col;
-  int next_row;
-  int next_col;
-  int bomb;
-
-  public int getDirection() {
-    return direction;
-  }
-
-  public void setDirection(int direction) {
-    this.direction = direction;
-  }
-
-  int direction;
-
-  public int getPlayer() {
-    return player;
-  }
-
-  public void setPlayer(int player) {
-    this.player = player;
-  }
-
-  public int getCurr_row() {
-    return curr_row;
-  }
-
-  public void setCurr_row(int curr_row) {
-    this.curr_row = curr_row;
-  }
-
-  public int getCurr_col() {
-    return curr_col;
-  }
-
-  public void setCurr_col(int curr_col) {
-    this.curr_col = curr_col;
-  }
-
-  public int getNext_row() {
-    return next_row;
-  }
-
-  public void setNext_row(int next_row) {
-    this.next_row = next_row;
-  }
-
-  public int getNext_col() {
-    return next_col;
-  }
-
-  public void setNext_col(int next_col) {
-    this.next_col = next_col;
-  }
-
-  public int getBomb() {
-    return bomb;
-  }
-
-  public void setBomb(int bomb) {
-    this.bomb = bomb;
-  }
 }
