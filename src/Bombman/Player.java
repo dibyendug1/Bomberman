@@ -23,21 +23,30 @@ public class Player {
       { { 1, 0 }, { 2, 0 }, { -1, 0 }, { -2, 0 }, { 0, -1 }, { 0, -2 },
           { 0, 1 }, { 0, 2 } };
 
-  int num_playerOne = 0;
-  int num_playerTwo = 0;
+  static int num_playerOne = 0;
+  static int num_playerTwo = 0;
+  static int mod_numPlayerOne = 0;
+  static int mod_numPlayerTwo = 0;
 
   public void play() {
     num_playerOne = 0;
     num_playerTwo = 0;
     decreseBombTime();
     getBoardInfo(board, identity, playerOne, playerTwo);
+    mod_numPlayerOne = num_playerOne;
+    mod_numPlayerTwo = num_playerTwo;
     ArrayList<Move> movesPlayerOne = new ArrayList<>();
     ArrayList<Move> movesPlayerTwo = new ArrayList<>();
-    genAllMoves(movesPlayerOne, playerOne, identity);
-    genAllMoves(movesPlayerTwo, playerTwo, opponent);
+    genAllMoves(movesPlayerOne, playerOne, identity, num_playerOne);
+    genAllMoves(movesPlayerTwo, playerTwo, opponent, num_playerTwo);
 
+    // First level move
+    ArrayList<Bomb> tmpBombList = bombList;
+    for (Bomb b : tmpBombList) {
+      b.decrTime();
+    }
     for (Move move : movesPlayerOne) {
-      makeMove(move);
+      makeMove(move, tmpBombList);
     }
 
     clearMemory();
@@ -75,8 +84,9 @@ public class Player {
     }
   }
 
-  private void genAllMoves(ArrayList<Move> moves, int[][] players, int who) {
-    for (int playerPos = 0; playerPos < players.length; playerPos++) {
+  private void genAllMoves(ArrayList<Move> moves, int[][] players, int who,
+      int numPlayers) {
+    for (int playerPos = 0; playerPos < numPlayers; playerPos++) {
       int[] player = players[playerPos];
       for (int i = 0; i < moveDirections.length; i++) {
         int[] direction = moveDirections[i];
@@ -105,17 +115,65 @@ public class Player {
     }
   }
 
-  private void makeMove(Move move) {
+  private void makeMove(Move move, ArrayList<Bomb> tmpBombList) {
     if (move.getPlayer() == identity) {
       playerOne[move.getPlayerPos()][0] = move.getNext_row();
       playerOne[move.getPlayerPos()][1] = move.getNext_col();
       board[move.getNext_row()][move.getNext_col()] = identity;
       board[move.getCurr_row()][move.getCurr_col()] = move.getBomb();
+      ArrayList<Bomb> modList = tmpBombList;
+
+      for (Bomb b : tmpBombList) {
+        if (b.getTime() == 0 && modList.contains(b)) {
+          modList.remove(b);
+          blowBomb(b, modList);
+        }
+      }
+      tmpBombList = modList;
+      genCost(mod_numPlayerOne, mod_numPlayerTwo, api_getSelfScore(),
+          api_getOppoScore(), move.getBomb());
     }
   }
 
-  private int genCost() {
+  // TO-DO implemet cost function
+  private int genCost(int mod_numPlayerOne, int mod_numPlayerTwo, int i,
+      int api_getOppoScore, int bomb) {
     return 0;
+  }
+
+  private void blowBomb(Bomb b, ArrayList<Bomb> modList) {
+    if (modList.isEmpty()) {
+      return;
+    }
+    killPlayers(b);
+    for (Bomb t_b : modList) {
+      if (isInRadius(b, t_b)) {
+        modList.remove(t_b);
+        blowBomb(t_b, modList);
+      }
+    }
+  }
+
+  private boolean isInRadius(Bomb b, Bomb t_b) {
+    for (int[] cell : bombArea) {
+      if ((b.getRow() + cell[0]) == t_b.getRow()
+          && (b.getCol() + cell[1]) == t_b.getCol()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private void killPlayers(Bomb b) {
+    for (int[] cell : bombArea) {
+      int r = b.getRow() + cell[0];
+      int c = b.getCol() + cell[1];
+      if (board[r][c] == identity) {
+        mod_numPlayerOne -= 1;
+      } else if (board[r][c] == opponent) {
+        mod_numPlayerTwo -= 1;
+      }
+    }
   }
 
   private boolean isBombPresent(int i, int j) {
@@ -213,9 +271,9 @@ public class Player {
       return false;
     }
     if (board[row][col] == GRID_EMPTY) {
-      if (isBombZone()) {
+/*      if (isBombZone()) {
         return false;
-      }
+      }*/
       return true;
     }
     return false;
