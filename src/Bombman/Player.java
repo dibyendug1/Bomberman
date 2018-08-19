@@ -29,6 +29,16 @@ public class Player {
   static int mod_numPlayerOne = 0;
   static int mod_numPlayerTwo = 0;
 
+  final int PLAYER_COST = 1000;
+  final int ESCAPEROUTE_4 = 100;
+  final int ESCAPEROUTE_3 = 75;
+  final int ESCAPEROUTE_2 = 25;
+  final int ESCAPEROUTE_1 = -25;
+  final int ESCAPEROUTE_0 = -100;
+  final int BOMBONE = 100;
+  final int BOMBTWO = 200;
+  final int NOBOMB = 0;
+
   public void play() {
     num_playerOne = 0;
     num_playerTwo = 0;
@@ -138,17 +148,61 @@ public class Player {
           listSize = tmpBombList.size();
         }
       }
-
       removeExplodedBomb(tmpBombList);
-      genCost(mod_numPlayerOne, mod_numPlayerTwo, api_getSelfScore(),
-          api_getOppoScore(), move.getBomb());
+      genCost(mod_numPlayerOne, api_getSelfScore(), api_getOppoScore(), move);
     }
   }
 
   // TO-DO implemet cost function
-  private int genCost(int mod_numPlayerOne, int mod_numPlayerTwo, int i,
-      int api_getOppoScore, int bomb) {
-    return 0;
+  private int genCost(int mod_numPlayer, int i, int api_getOppoScore,
+      Move move) {
+    int cost = 0;
+
+    cost = cost + mod_numPlayer * PLAYER_COST;
+
+    int escapeRoute = getEscapeRouteSize(move);
+    switch (escapeRoute) {
+    case 0:
+      cost = cost + ESCAPEROUTE_0;
+      break;
+    case 1:
+      cost = cost + ESCAPEROUTE_1;
+      break;
+    case 2:
+      cost = cost + ESCAPEROUTE_2;
+      break;
+    case 3:
+      cost = cost + ESCAPEROUTE_3;
+      break;
+    case 4:
+      cost = cost + ESCAPEROUTE_4;
+    }
+
+    switch (move.getBomb()) {
+    case 0:
+      cost = cost + NOBOMB;
+      break;
+    case 1:
+      cost = cost + BOMBONE;
+      break;
+    case 2:
+      cost = cost + BOMBTWO;
+      break;
+    }
+
+    return cost;
+  }
+
+  private int getEscapeRouteSize(Move move) {
+    int row = move.getNext_row();
+    int col = move.getNext_col();
+    int clearRoute = 0;
+    for (int[] d : moveDirections) {
+      if (board[row + d[0]][col + d[1]] == GRID_EMPTY) {
+        clearRoute++;
+      }
+    }
+    return clearRoute;
   }
 
   private void blowBomb(Bomb b, ArrayList<Bomb> tmpList) {
