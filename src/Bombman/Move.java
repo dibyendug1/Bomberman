@@ -1,6 +1,6 @@
 package Bombman;
 
-public class Move {
+public class Move implements Comparable {
   int player;
   int playerPos;
   int curr_row;
@@ -9,7 +9,16 @@ public class Move {
   int next_col;
   int bomb = 0;
   int direction;
-  
+  int cost;
+
+  public int getCost() {
+    return cost;
+  }
+
+  public void setCost(int cost) {
+    this.cost = cost;
+  }
+
   public int getPlayerPos() {
     return playerPos;
   }
@@ -72,5 +81,11 @@ public class Move {
 
   public void setBomb(int bomb) {
     this.bomb = bomb;
+  }
+
+  @Override
+  public int compareTo(Object o) {
+    int c = ((Move) o).getCost();
+    return this.cost - c;
   }
 }

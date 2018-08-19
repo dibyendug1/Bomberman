@@ -1,6 +1,7 @@
 package Bombman;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class Player {
 
@@ -10,15 +11,10 @@ public class Player {
   final int opponent = api_whoami() == GRID_LEFT ? GRID_RIGHT : GRID_LEFT;
   // playerOne is our team
   ArrayList<Miniman> playerOne = new ArrayList<>();
-  ArrayList<Miniman> playerTwo = new ArrayList<>();
   // list to store bomb locations
   static ArrayList<Bomb> bombList = new ArrayList<>();
   // four possible move direction for miniman
   final int[][] moveDirections = { { 1, 0 }, { -1, 0 }, { 0, -1 }, { 0, 1 } };
-  // if bomb present at radius 3
-  final int[][] bombZone =
-      { { 1, 0 }, { 2, 0 }, { 3, 0 }, { -1, 0 }, { -2, 0 }, { -3, 0 },
-          { 0, -1 }, { 0, -2 }, { 0, -3 }, { 0, 1 }, { 0, 2 }, { 0, 3 } };
   // if bomb present at radius 2
   final int[][] bombArea =
       { { 1, 0 }, { 2, 0 }, { -1, 0 }, { -2, 0 }, { 0, -1 }, { 0, -2 },
@@ -29,56 +25,49 @@ public class Player {
   static int mod_numPlayerOne = 0;
   static int mod_numPlayerTwo = 0;
 
-  final int PLAYER_COST = 1000;
-  final int ESCAPEROUTE_4 = 100;
-  final int ESCAPEROUTE_3 = 75;
-  final int ESCAPEROUTE_2 = 25;
-  final int ESCAPEROUTE_1 = -25;
-  final int ESCAPEROUTE_0 = -100;
-  final int BOMBONE = 100;
-  final int BOMBTWO = 200;
+  // define weight for different actions
+  final int MOVEFROMBOMB = 1000;
+  final int BOMBONE = 900;
+  final int BOMBTWO = 900;
+  final int SUICIDALBOMB = 700;
   final int NOBOMB = 0;
+  final int MOVETOOPPONENET = 500;
+  final int SELFSIDEMOVE = 100;
+  final int ESCAPEROUTE_4 = 500;
+  final int ESCAPEROUTE_3 = 300;
+  final int ESCAPEROUTE_2 = 100;
+  final int ESCAPEROUTE_1 = -100;
+  final int ESCAPEROUTE_0 = -500;
 
   public void play() {
     num_playerOne = 0;
     num_playerTwo = 0;
     //decrease bomb time by 1
-    decreseBombTime(bombList);
-    //Create tmp bomb list to maintain internal states
-    ArrayList<Bomb> tmpBombList = new ArrayList<Bomb>();
+    decreaseBombTime(bombList);
     //get board information
-    getBoardInfo(board, playerOne, playerTwo);
+    getBoardInfo(board, playerOne);
+    ArrayList<Miniman> playerInBombArea = new ArrayList<>();
+    getPlayerInBombArea(playerInBombArea, bombList);
     //set num of playes in temporary variable for internal states
     mod_numPlayerOne = num_playerOne;
     mod_numPlayerTwo = num_playerTwo;
     // lists to store moves of the playes
     ArrayList<Move> movesPlayerOne = new ArrayList<>();
-    ArrayList<Move> movesPlayerTwo = new ArrayList<>();
     // generate moves for players
-    genAllMoves(movesPlayerOne, playerOne, identity, num_playerOne);
-    genAllMoves(movesPlayerTwo, playerTwo, opponent, num_playerTwo);
-    // copy bomb list to temporary bomblist
-    copyList(bombList, tmpBombList);
+    genAllMoves(movesPlayerOne, playerOne, playerInBombArea, identity,
+        num_playerOne);
 
-    // First level move in internal state
-    // in this move bomb time in tmporary list will also decrease
-    decreseBombTime(tmpBombList);
-    for (Move move : movesPlayerOne) {
-      makeMove(move, tmpBombList);
-    }
+    Collections.sort(movesPlayerOne);
 
-    clearMemory();
+    Move finalMove = movesPlayerOne.get(0);
+    api_walk(finalMove.getCurr_row(), finalMove.getCurr_col(),
+        finalMove.getDirection(), finalMove.getBomb());
+    removeExplodedBomb(bombList);
   }
+  // implement select move based on timing
 
-  private void copyList(ArrayList<Bomb> bombList, ArrayList<Bomb> tmpBombList) {
-    for (Bomb b : bombList) {
-      tmpBombList
-          .add(new Bomb(b.getType(), b.getRow(), b.getCol(), b.getTime()));
-    }
-  }
-
-  public void getBoardInfo(int[][] board, ArrayList<Miniman> playerOne,
-      ArrayList<Miniman> playerTwo) {
+  // Store board informations
+  public void getBoardInfo(int[][] board, ArrayList<Miniman> playerOne) {
     for (int i = 0; i < MAX_ROW; i++) {
       for (int j = 0; j < MAX_COL; j++) {
         int cell = api_getGridInfo(i, j);
@@ -87,7 +76,6 @@ public class Player {
           playerOne.add(new Miniman(identity, i, j));
           num_playerOne++;
         } else if (cell == opponent) {
-          playerTwo.add(new Miniman(opponent, i, j));
           num_playerTwo++;
         }
         if (cell == GRID_BOMB1 || cell == GRID_BOMB2) {
@@ -99,9 +87,42 @@ public class Player {
     }
   }
 
+  // Get list of players in bomb explosion ares
+  private void getPlayerInBombArea(ArrayList<Miniman> playerInBombArea,
+      ArrayList<Bomb> bombList) {
+    for (Bomb b : bombList) {
+      int r = b.getRow();
+      int c = b.getCol();
+      for (int[] cell : bombArea) {
+        int row = r + cell[0];
+        int col = c + cell[1];
+        if (board[row][col] == identity) {
+          playerInBombArea.add(new Miniman(identity, row, col));
+        }
+      }
+    }
+  }
+
+  // If a player in bomb explosion zone, move that player
+  // Avoid going into bomb zone
+  // Drop bomb if opponent is in bomb zone
+  // Drop suicidal bomb if num(opponent) > num(own)
+  // Move towards opponent
   private void genAllMoves(ArrayList<Move> moves, ArrayList<Miniman> players,
-      int who, int numPlayers) {
-    for (int playerPos = 0; playerPos < numPlayers; playerPos++) {
+      ArrayList<Miniman> playerInBombArea, int who, int numPlayers) {
+    int num_playerInBomb = playerInBombArea.size();
+    if (num_playerInBomb > 0) {
+      genMoves(moves, playerInBombArea, who, num_playerInBomb);
+    } else {
+      for (int playerPos = 0; playerPos < numPlayers; playerPos++) {
+        genMoves(moves, players, who, numPlayers);
+      }
+    }
+  }
+
+  private void genMoves(ArrayList<Move> moves, ArrayList<Miniman> players,
+      int who, int num_playerInBomb) {
+    for (int playerPos = 0; playerPos < num_playerInBomb; playerPos++) {
       Miniman player = players.get(playerPos);
       for (int i = 0; i < moveDirections.length; i++) {
         int[] direction = moveDirections[i];
@@ -115,51 +136,79 @@ public class Player {
           mv.setPlayer(who);
           mv.setPlayerPos(playerPos);
           int bomb = 0;
-          if (!isOurPlayerInBombRadius(player) && hasEscapeRuote(player, i)) {
-            if (isOpponentInRadius4(player)) {
-              bomb = GRID_BOMB1;
+          boolean suicidal = false;
+          // get number of our and opponent player in bombradius
+          // TO-DO need to modify
+          int[] playerInBombCount = isOurPlayerInBombRadius(player);
+          if (playerInBombCount[0] < playerInBombCount[1]) {
+            if (hasEscapeRuote(player, i)) {
+              if (isOpponentInRadius4(player)) {
+                bomb = GRID_BOMB1;
+              }
+              if (isOpponentInRadius5(player)) {
+                bomb = GRID_BOMB2;
+              }
+            } else if (playerInBombCount[1] - playerInBombCount[0] > 1) {
+              if (isOpponentInRadius4(player)) {
+                bomb = GRID_BOMB1;
+              }
+              if (isOpponentInRadius5(player)) {
+                bomb = GRID_BOMB2;
+              }
             }
-            if (isOpponentInRadius5(player)) {
-              bomb = GRID_BOMB2;
+            if (bomb != 0 && playerInBombCount[0] > 0) {
+              suicidal = true;
             }
-            mv.setBomb(bomb);
-            moves.add(mv);
           }
+          mv.setBomb(bomb);
+          mv.setCost(getCost(true, suicidal, mv));
+          moves.add(mv);
         }
       }
     }
   }
 
-  private void makeMove(Move move, ArrayList<Bomb> tmpBombList) {
-    if (move.getPlayer() == identity) {
-      int pos = move.getPlayerPos();
-      playerOne.get(pos).setRow(move.getNext_row());
-      playerOne.get(pos).setCol(move.getNext_col());
-      board[move.getNext_row()][move.getNext_col()] = identity;
-      board[move.getCurr_row()][move.getCurr_col()] = move.getBomb();
-
-      int listSize = tmpBombList.size();
-      for (int i = 0; i < listSize; i++) {
-        Bomb b1 = tmpBombList.get(i);
-        if (b1.getTime() == 0) {
-          tmpBombList.remove(b1);
-          blowBomb(b1, tmpBombList);
-          i--;
-          listSize = tmpBombList.size();
-        }
-      }
-      removeExplodedBomb(tmpBombList);
-      genCost(mod_numPlayerOne, api_getSelfScore(), api_getOppoScore(), move);
-    }
-  }
-
-  // TO-DO implemet cost function
-  private int genCost(int mod_numPlayer, int i, int api_getOppoScore,
-      Move move) {
+  private int getCost(boolean moveFromBomb, boolean suicidal, Move move) {
     int cost = 0;
+    // Weight for saving bomb
+    if (moveFromBomb) {
+      cost += MOVEFROMBOMB;
+    }
 
-    cost = cost + mod_numPlayer * PLAYER_COST;
+    // Weight for placing bomb
+    switch (move.getBomb()) {
+    case GRID_BOMB1:
+      cost += BOMBONE;
+      break;
+    case GRID_BOMB2:
+      cost += BOMBTWO;
+      break;
+    case GRID_EMPTY:
+      cost += NOBOMB;
+    }
 
+    // Weight on suiciding
+    if (suicidal) {
+      cost += SUICIDALBOMB;
+    }
+
+    // Prefer move towards opponent
+    int direction = move.getDirection();
+    if (identity == PLAYER_L) {
+      if (direction == DIR_RIGHT || direction == DIR_DOWN) {
+        cost += MOVETOOPPONENET;
+      } else {
+        cost += SELFSIDEMOVE;
+      }
+    } else if (identity == PLAYER_R) {
+      if (direction == DIR_LEFT || direction == DIR_UP) {
+        cost += MOVETOOPPONENET;
+      } else {
+        cost += SELFSIDEMOVE;
+      }
+    }
+
+    // weight based on the available path in next step
     int escapeRoute = getEscapeRouteSize(move);
     switch (escapeRoute) {
     case 0:
@@ -178,21 +227,10 @@ public class Player {
       cost = cost + ESCAPEROUTE_4;
     }
 
-    switch (move.getBomb()) {
-    case 0:
-      cost = cost + NOBOMB;
-      break;
-    case 1:
-      cost = cost + BOMBONE;
-      break;
-    case 2:
-      cost = cost + BOMBTWO;
-      break;
-    }
-
     return cost;
   }
 
+  // Find number of possible moves in next step
   private int getEscapeRouteSize(Move move) {
     int row = move.getNext_row();
     int col = move.getNext_col();
@@ -205,45 +243,7 @@ public class Player {
     return clearRoute;
   }
 
-  private void blowBomb(Bomb b, ArrayList<Bomb> tmpList) {
-    if (tmpList.isEmpty()) {
-      return;
-    }
-    killPlayers(b);
-    int size = tmpList.size();
-    for (int i = 0; i < size; i++) {
-      Bomb t_b = tmpList.get(i);
-      if (isInRadius(b, t_b)) {
-        tmpList.remove(t_b);
-        blowBomb(t_b, tmpList);
-        i--;
-        size = tmpList.size();
-      }
-    }
-  }
-
-  private boolean isInRadius(Bomb b, Bomb t_b) {
-    for (int[] cell : bombArea) {
-      if ((b.getRow() + cell[0]) == t_b.getRow()
-          && (b.getCol() + cell[1]) == t_b.getCol()) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private void killPlayers(Bomb b) {
-    for (int[] cell : bombArea) {
-      int r = b.getRow() + cell[0];
-      int c = b.getCol() + cell[1];
-      if (board[r][c] == identity) {
-        mod_numPlayerOne -= 1;
-      } else if (board[r][c] == opponent) {
-        mod_numPlayerTwo -= 1;
-      }
-    }
-  }
-
+  // if the board contains bomb
   private boolean isBombPresent(int i, int j) {
     for (Bomb b : bombList) {
       if (b.getRow() == i && b.getCol() == j) {
@@ -253,7 +253,8 @@ public class Player {
     return false;
   }
 
-  private void decreseBombTime(ArrayList<Bomb> tmpList) {
+  // decrease bomb time
+  private void decreaseBombTime(ArrayList<Bomb> tmpList) {
     int size = tmpList.size();
     for (int i = 0; i < size; i++) {
       Bomb b = tmpList.get(i);
@@ -265,6 +266,7 @@ public class Player {
     }
   }
 
+  // Remove exploded bombs from the list
   private void removeExplodedBomb(ArrayList<Bomb> tmpList) {
     int size = tmpList.size();
     for (int i = 0; i < size; i++) {
@@ -276,6 +278,7 @@ public class Player {
     }
   }
 
+  // If escape router present after placing bomb
   private boolean hasEscapeRuote(Miniman player, int direction) {
     int row = player.getRow();
     int col = player.getCol();
@@ -303,16 +306,25 @@ public class Player {
     return false;
   }
 
-  private boolean isOurPlayerInBombRadius(Miniman player) {
+  private int[] isOurPlayerInBombRadius(Miniman player) {
+    int[] res = new int[2];
+    int countOur = 0;
+    int countOpp = 0;
     for (int[] cell : bombArea) {
       if (board[player.getRow() + cell[0]][player.getCol() + cell[1]]
           == identity) {
-        return true;
+        countOur++;
+      } else if (board[player.getRow() + cell[0]][player.getCol() + cell[1]]
+          == opponent) {
+        countOpp++;
       }
     }
-    return false;
+    res[0] = countOur;
+    res[1] = countOpp;
+    return res;
   }
 
+  // get opponent player in bomb 2 radius
   private boolean isOpponentInRadius5(Miniman player) {
     int row = player.getRow();
     int col = player.getCol();
@@ -336,6 +348,7 @@ public class Player {
     return false;
   }
 
+  // opponent players in bomb 1 radius
   private boolean isOpponentInRadius4(Miniman player) {
     for (int i = -4; i <= 4; i++) {
       int absI = i < 0 ? i * -1 : i;
@@ -348,6 +361,7 @@ public class Player {
     return false;
   }
 
+  // Check if the move is valid
   private boolean isValidMove(Miniman player, int[] direction) {
     int row = player.getRow() + direction[0];
     int col = player.getCol() + direction[1];
@@ -358,25 +372,21 @@ public class Player {
       return false;
     }
     if (board[row][col] == GRID_EMPTY) {
-      /*if (isBombZone()) {
+      if (isBombArea(row, col)) {
         return false;
-      }*/
+      }
       return true;
     }
     return false;
   }
 
-  private boolean isBombZone() {
-    for (int i = 0; i < bombZone.length; i++) {
-      int[] cell = bombZone[i];
-      int rindex = cell[0];
-      int cindex = cell[1];
+  // check if the cell is in bomb explosion area
+  private boolean isBombArea(int row, int col) {
+    for (int i = 0; i < bombArea.length; i++) {
+      int[] cell = bombArea[i];
+      int rindex = row + cell[0];
+      int cindex = col + cell[1];
       // no need to check the cell which is other side of the fence
-      if (board[rindex][cindex] == GRID_FENCE) {
-        if (rindex == -1 || rindex == 1 || cindex == -1 || cindex == 1) {
-          i += 3;
-        }
-      }
       if (board[rindex][cindex] == GRID_FENCE) {
         if (rindex == -2 || rindex == 2 || cindex == -2 || cindex == 2) {
           i += 2;
@@ -391,10 +401,7 @@ public class Player {
   }
 
   private void clearMemory() {
-    board = null;
-    playerOne = null;
-    playerTwo = null;
-    bombList.clear();
+    playerOne.clear();
     System.gc();
   }
 
