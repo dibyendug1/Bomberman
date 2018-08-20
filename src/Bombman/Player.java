@@ -64,7 +64,7 @@ public class Player {
         finalMove.getDirection(), finalMove.getBomb());
     removeExplodedBomb(bombList);
   }
-  // implement select move based on timing
+  //TO-DO implement select move based on timing
 
   // Store board informations
   public void getBoardInfo(int[][] board, ArrayList<Miniman> playerOne) {
@@ -108,20 +108,22 @@ public class Player {
   // Drop bomb if opponent is in bomb zone
   // Drop suicidal bomb if num(opponent) > num(own)
   // Move towards opponent
+  // TO-DO more weight to corner players
+  // TO_DO Bomb weight x num player can kill
   private void genAllMoves(ArrayList<Move> moves, ArrayList<Miniman> players,
       ArrayList<Miniman> playerInBombArea, int who, int numPlayers) {
     int num_playerInBomb = playerInBombArea.size();
     if (num_playerInBomb > 0) {
-      genMoves(moves, playerInBombArea, who, num_playerInBomb);
+      genMoves(moves, playerInBombArea, who, num_playerInBomb, true);
     } else {
       for (int playerPos = 0; playerPos < numPlayers; playerPos++) {
-        genMoves(moves, players, who, numPlayers);
+        genMoves(moves, players, who, numPlayers, false);
       }
     }
   }
 
   private void genMoves(ArrayList<Move> moves, ArrayList<Miniman> players,
-      int who, int num_playerInBomb) {
+      int who, int num_playerInBomb, boolean moveFromBomb) {
     for (int playerPos = 0; playerPos < num_playerInBomb; playerPos++) {
       Miniman player = players.get(playerPos);
       for (int i = 0; i < moveDirections.length; i++) {
@@ -161,7 +163,7 @@ public class Player {
             }
           }
           mv.setBomb(bomb);
-          mv.setCost(getCost(true, suicidal, mv));
+          mv.setCost(getCost(moveFromBomb, suicidal, mv));
           moves.add(mv);
         }
       }
@@ -398,11 +400,6 @@ public class Player {
       }
     }
     return false;
-  }
-
-  private void clearMemory() {
-    playerOne.clear();
-    System.gc();
   }
 
   public static native int api_whoami();

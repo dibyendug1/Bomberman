@@ -11,12 +11,12 @@ public class Move implements Comparable {
   int direction;
   int cost;
 
-  public int getCost() {
-    return cost;
+  public int getPlayer() {
+    return player;
   }
 
-  public void setCost(int cost) {
-    this.cost = cost;
+  public void setPlayer(int player) {
+    this.player = player;
   }
 
   public int getPlayerPos() {
@@ -25,22 +25,6 @@ public class Move implements Comparable {
 
   public void setPlayerPos(int playerPos) {
     this.playerPos = playerPos;
-  }
-
-  public int getDirection() {
-    return direction;
-  }
-
-  public void setDirection(int direction) {
-    this.direction = direction;
-  }
-
-  public int getPlayer() {
-    return player;
-  }
-
-  public void setPlayer(int player) {
-    this.player = player;
   }
 
   public int getCurr_row() {
@@ -83,8 +67,23 @@ public class Move implements Comparable {
     this.bomb = bomb;
   }
 
-  @Override
-  public int compareTo(Object o) {
+  public int getDirection() {
+    return direction;
+  }
+
+  public void setDirection(int direction) {
+    this.direction = direction;
+  }
+
+  public int getCost() {
+    return cost;
+  }
+
+  public void setCost(int cost) {
+    this.cost = cost;
+  }
+
+  @Override public int compareTo(Object o) {
     int c = ((Move) o).getCost();
     return this.cost - c;
   }
