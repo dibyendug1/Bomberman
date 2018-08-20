@@ -85,6 +85,6 @@ public class Move implements Comparable {
 
   @Override public int compareTo(Object o) {
     int c = ((Move) o).getCost();
-    return this.cost - c;
+    return c - this.cost;
   }
 }
